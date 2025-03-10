@@ -30,17 +30,33 @@ struct CreditCardView: View {
                         cardNumber: cardNumber,
                         expiryDate: expiryDate,
                         cardholderName: cardholderName,
-                        isActive: focusedField != .cvv
+                        isActive: !isCardFlipped
                     )
                     
                     // Back of the card
                     CreditCardBack(
                         cvv: cvv,
-                        isActive: focusedField == .cvv
+                        isActive: isCardFlipped
                     )
                 }
                 .frame(width: 320, height: 200)
                 .modifier(FlipEffect(isFlipped: $isCardFlipped))
+                // Add tap gesture to flip card
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                        isCardFlipped.toggle()
+                    }
+                }
+                .overlay(
+                    // Subtle visual indicator that card is tappable
+                    Image(systemName: "arrow.2.squarepath")
+                        .font(.system(size: 16))
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(8)
+                        .background(Circle().fill(Color.black.opacity(0.2)))
+                        .padding(8),
+                    alignment: .topLeading
+                )
             }
             .padding(.top, 20)
             
@@ -61,7 +77,7 @@ struct CreditCardView: View {
                         }
                         .onTapGesture {
                             focusedField = .cardNumber
-                            withAnimation {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                                 isCardFlipped = false
                             }
                         }
@@ -84,7 +100,7 @@ struct CreditCardView: View {
                             }
                             .onTapGesture {
                                 focusedField = .expiryDate
-                                withAnimation {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                                     isCardFlipped = false
                                 }
                             }
@@ -102,13 +118,23 @@ struct CreditCardView: View {
                             .cornerRadius(10)
                             .frame(maxWidth: .infinity)
                             .onChange(of: cvv) { newValue in
+                                // Auto-trigger card flip when user starts typing CVV
+                                if !isCardFlipped && !newValue.isEmpty {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                        isCardFlipped = true
+                                    }
+                                }
+                                
+                                // Limit to 3 digits
                                 if newValue.count > 3 {
                                     cvv = String(newValue.prefix(3))
+                                } else {
+                                    cvv = newValue
                                 }
                             }
                             .onTapGesture {
                                 focusedField = .cvv
-                                withAnimation {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                                     isCardFlipped = true
                                 }
                             }
@@ -129,7 +155,7 @@ struct CreditCardView: View {
                         }
                         .onTapGesture {
                             focusedField = .cardholderName
-                            withAnimation {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                                 isCardFlipped = false
                             }
                         }
@@ -303,10 +329,14 @@ struct CreditCardBack: View {
                             .fill(Color.white)
                             .frame(height: 40)
                         
-                        Text(cvv.isEmpty ? "CVV" : cvv)
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.black)
-                            .padding(.trailing, 8)
+                        // Dynamic CVV display
+                        HStack {
+                            Spacer()
+                            Text(cvv.isEmpty ? "CVV" : cvv)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.black)
+                                .padding(.trailing, 8)
+                        }
                     }
                 }
                 .padding(.horizontal)
