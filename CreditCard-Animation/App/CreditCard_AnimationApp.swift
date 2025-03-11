@@ -7,6 +7,7 @@
 
 import SwiftUI
 import RealmSwift
+import IQKeyboardManagerSwift
 @main
 struct CreditCard_AnimationApp: App {
     var body: some Scene {

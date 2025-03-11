@@ -7,6 +7,7 @@
 
 import SwiftUI
 import RealmSwift
+
 struct AddCardView: View {
     @State private var cardNumber = ""
     @State private var expiryDate = ""
@@ -96,6 +97,7 @@ struct AddCardView: View {
                     .onChange(of: cardNumber) { newValue in
                         cardNumber = formatCardNumber(newValue)
                     }
+                    //.doneToolbar() // Adds "Done" button
                     
                     HStack(spacing: 16) {
                         // Expiry Date field
@@ -115,6 +117,7 @@ struct AddCardView: View {
                         .onChange(of: expiryDate) { newValue in
                             expiryDate = formatExpiryDate(newValue)
                         }
+                       // .doneToolbar()
                         
                         // CVV field
                         FormField(
@@ -137,6 +140,7 @@ struct AddCardView: View {
                                 cvv = newValue
                             }
                         }
+                        //.doneToolbar()
                     }
                     
                     // Cardholder Name field
@@ -156,6 +160,7 @@ struct AddCardView: View {
                     .onChange(of: cardholderName) { newValue in
                         cardholderName = newValue.uppercased()
                     }
+                    .doneToolbar()
                     
                     // Save button (previously Complete Payment)
                     Button(action: saveCard) {
@@ -195,16 +200,16 @@ struct AddCardView: View {
             }
         }
         .background(
-            colorScheme == .dark ?
-                Color.black :
-                Color(hex: "F8F9FA")
+            colorScheme == .dark ? Color.black : Color(hex: "F8F9FA")
         )
         .edgesIgnoringSafeArea(.bottom)
+        .onTapGesture {
+            hideKeyboard() // Dismiss keyboard when tapping outside
+        }
     }
     
     // Save card to Realm database
     private func saveCard() {
-        // Validate all fields are filled
         if !cardNumber.isEmpty && !expiryDate.isEmpty && !cvv.isEmpty && !cardholderName.isEmpty {
             let newCard = CreditCard(
                 cardNumber: cardNumber,
@@ -212,16 +217,11 @@ struct AddCardView: View {
                 cvv: cvv,
                 cardholderName: cardholderName
             )
-            
-            // Save to Realm
             $savedCards.append(newCard)
-            
-            // Show success alert
             showSaveAlert = true
         }
     }
     
-    // Reset form after saving
     private func resetForm() {
         cardNumber = ""
         expiryDate = ""
@@ -230,17 +230,14 @@ struct AddCardView: View {
         isCardFlipped = false
     }
     
-    // Format card number with spaces
     private func formatCardNumber(_ number: String) -> String {
         let digitsOnly = number.filter { $0.isNumber }
         let formattedString = digitsOnly.enumerated().map { index, char in
             return index > 0 && index % 4 == 0 ? " \(char)" : String(char)
         }.joined()
-        
         return formattedString.count > 19 ? String(formattedString.prefix(19)) : formattedString
     }
     
-    // Format expiry date with a slash
     private func formatExpiryDate(_ date: String) -> String {
         let digitsOnly = date.filter { $0.isNumber }
         if digitsOnly.count > 2 {
@@ -250,5 +247,23 @@ struct AddCardView: View {
         } else {
             return digitsOnly
         }
+    }
+}
+
+// Extensions for dismissing the keyboard
+extension View {
+    func doneToolbar() -> some View {
+        self.toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    hideKeyboard()
+                }
+            }
+        }
+    }
+    
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 }
