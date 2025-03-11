@@ -1,13 +1,55 @@
 import SwiftUI
+import RealmSwift
 
-struct CreditCardView: View {
+// Define the Realm model for credit cards
+class CreditCard: Object, Identifiable {
+    @Persisted(primaryKey: true) var id: ObjectId
+    @Persisted var cardNumber: String = ""
+    @Persisted var expiryDate: String = ""
+    @Persisted var cvv: String = ""
+    @Persisted var cardholderName: String = ""
+    @Persisted var dateAdded: Date = Date()
+    
+    convenience init(cardNumber: String, expiryDate: String, cvv: String, cardholderName: String) {
+        self.init()
+        self.id = ObjectId.generate()
+        self.cardNumber = cardNumber
+        self.expiryDate = expiryDate
+        self.cvv = cvv
+        self.cardholderName = cardholderName
+    }
+}
+
+// Main ContentView with TabView
+struct ContentView: View {
+    var body: some View {
+        TabView {
+            AddCardView()
+                .tabItem {
+                    Label("Add Card", systemImage: "creditcard.and.123")
+                }
+            
+            SavedCardsView()
+                .tabItem {
+                    Label("Saved Cards", systemImage: "wallet.pass")
+                }
+        }
+    }
+}
+
+// Add Card View (modified from your original CreditCardView)
+struct AddCardView: View {
     @State private var cardNumber = ""
     @State private var expiryDate = ""
     @State private var cvv = ""
     @State private var cardholderName = ""
     @State private var isCardFlipped = false
     @State private var focusedField: Field? = nil
+    @State private var showSaveAlert = false
     @Environment(\.colorScheme) var colorScheme
+    
+    // Realm setup
+    @ObservedResults(CreditCard.self) var savedCards
     
     enum Field: Hashable {
         case cardNumber, expiryDate, cvv, cardholderName
@@ -28,7 +70,7 @@ struct CreditCardView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 30) {
-                Text("Payment Details")
+                Text("Add New Card")
                     .font(.system(size: 28, weight: .bold, design: .rounded))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal)
@@ -146,14 +188,12 @@ struct CreditCardView: View {
                         cardholderName = newValue.uppercased()
                     }
                     
-                    // Submit button
-                    Button(action: {
-                        // Submit payment logic
-                    }) {
+                    // Save button (previously Complete Payment)
+                    Button(action: saveCard) {
                         HStack {
-                            Image(systemName: "checkmark.circle.fill")
+                            Image(systemName: "creditcard.and.123")
                                 .font(.system(size: 20))
-                            Text("Complete Payment")
+                            Text("Save Card")
                                 .font(.system(size: 18, weight: .semibold, design: .rounded))
                         }
                         .foregroundColor(.white)
@@ -170,6 +210,15 @@ struct CreditCardView: View {
                         .shadow(color: Color(hex: "3494E6").opacity(0.4), radius: 10, x: 0, y: 5)
                     }
                     .padding(.top, 10)
+                    .alert(isPresented: $showSaveAlert) {
+                        Alert(
+                            title: Text("Card Saved"),
+                            message: Text("Your card details have been saved successfully."),
+                            dismissButton: .default(Text("OK")) {
+                                resetForm()
+                            }
+                        )
+                    }
                 }
                 .padding(.horizontal, 24)
                 
@@ -182,6 +231,34 @@ struct CreditCardView: View {
                 Color(hex: "F8F9FA")
         )
         .edgesIgnoringSafeArea(.bottom)
+    }
+    
+    // Save card to Realm database
+    private func saveCard() {
+        // Validate all fields are filled
+        if !cardNumber.isEmpty && !expiryDate.isEmpty && !cvv.isEmpty && !cardholderName.isEmpty {
+            let newCard = CreditCard(
+                cardNumber: cardNumber,
+                expiryDate: expiryDate,
+                cvv: cvv,
+                cardholderName: cardholderName
+            )
+            
+            // Save to Realm
+            $savedCards.append(newCard)
+            
+            // Show success alert
+            showSaveAlert = true
+        }
+    }
+    
+    // Reset form after saving
+    private func resetForm() {
+        cardNumber = ""
+        expiryDate = ""
+        cvv = ""
+        cardholderName = ""
+        isCardFlipped = false
     }
     
     // Format card number with spaces
@@ -207,6 +284,204 @@ struct CreditCardView: View {
     }
 }
 
+// Saved Cards View
+struct SavedCardsView: View {
+    @ObservedResults(CreditCard.self) var savedCards
+    @State private var selectedCard: CreditCard?
+    @State private var isCardFlipped = false
+    @Environment(\.colorScheme) var colorScheme
+    
+    // Card gradient
+    private var cardGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color(hex: "1A2980"),
+                Color(hex: "26D0CE")
+            ]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                // Background
+                (colorScheme == .dark ? Color.black : Color(hex: "F8F9FA"))
+                    .edgesIgnoringSafeArea(.all)
+                
+                if savedCards.isEmpty {
+                    // Empty state
+                    VStack(spacing: 20) {
+                        Image(systemName: "creditcard.trianglebadge.exclamationmark")
+                            .font(.system(size: 70))
+                            .foregroundColor(.gray)
+                        
+                        Text("No Cards Saved")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                        
+                        Text("Add a card in the 'Add Card' tab")
+                            .foregroundColor(.gray)
+                    }
+                } else {
+                    // Card list
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            ForEach(savedCards) { card in
+                                CardListItem(card: card)
+                                    .onTapGesture {
+                                        selectedCard = card
+                                        isCardFlipped = false
+                                    }
+                            }
+                        }
+                        .padding()
+                    }
+                    
+                    // Card detail overlay
+                    if selectedCard != nil {
+                        CardDetailView(
+                            card: selectedCard!,
+                            isFlipped: $isCardFlipped,
+                            onDismiss: { selectedCard = nil }
+                        )
+                        .transition(.opacity)
+                        .animation(.easeInOut, value: selectedCard != nil)
+                    }
+                }
+            }
+            .navigationTitle("Saved Cards")
+        }
+    }
+    
+    // Card list item component
+    struct CardListItem: View {
+        let card: CreditCard
+        @Environment(\.colorScheme) var colorScheme
+        
+        var body: some View {
+            HStack(spacing: 15) {
+                // Card icon
+                Image(systemName: "creditcard.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(Color(hex: "1A2980"))
+                    .frame(width: 50, height: 50)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(colorScheme == .dark ? Color(hex: "222222") : Color.white)
+                            .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
+                    )
+                
+                // Card info
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(card.cardholderName)
+                        .font(.headline)
+                    
+                    Text("•••• " + card.cardNumber.suffix(4))
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    
+                    Text("Expires: " + card.expiryDate)
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                
+                Spacer()
+                
+                // Tap to view indicator
+                Image(systemName: "chevron.right")
+                    .foregroundColor(.gray)
+            }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(colorScheme == .dark ? Color(hex: "1A1A1A") : Color.white)
+                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.3 : 0.1), radius: 8, x: 0, y: 4)
+            )
+        }
+    }
+    
+    // Card detail overlay view
+    struct CardDetailView: View {
+        let card: CreditCard
+        @Binding var isFlipped: Bool
+        let onDismiss: () -> Void
+        
+        private var cardGradient: LinearGradient {
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "1A2980"),
+                    Color(hex: "26D0CE")
+                ]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+        
+        var body: some View {
+            ZStack {
+                // Backdrop
+                Color.black.opacity(0.5)
+                    .edgesIgnoringSafeArea(.all)
+                    .onTapGesture {
+                        onDismiss()
+                    }
+                
+                // Card visualization
+                VStack(spacing: 20) {
+                    // Card
+                    ZStack {
+                        // Front of the card
+                        CreditCardFront(
+                            cardNumber: card.cardNumber,
+                            expiryDate: card.expiryDate,
+                            cardholderName: card.cardholderName,
+                            isActive: !isFlipped,
+                            gradient: cardGradient
+                        )
+                        
+                        // Back of the card
+                        CreditCardBack(
+                            cvv: card.cvv,
+                            isActive: isFlipped,
+                            gradient: cardGradient
+                        )
+                    }
+                    .frame(width: 340, height: 210)
+                    .modifier(FlipEffect(isFlipped: $isFlipped))
+                    // Add tap gesture to flip card
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                            isFlipped.toggle()
+                        }
+                    }
+                    
+                    Text("Tap card to flip")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                    
+                    // Close button
+                    Button(action: onDismiss) {
+                        Text("Close")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .padding(.vertical, 12)
+                            .padding(.horizontal, 30)
+                            .background(
+                                Capsule()
+                                    .fill(Color.gray.opacity(0.6))
+                            )
+                    }
+                    .padding(.top, 20)
+                }
+                .padding()
+            }
+        }
+    }
+}
+
+// Keep your existing components from here
 // Reusable form field component
 struct FormField: View {
     let icon: String
@@ -523,14 +798,4 @@ extension Color {
     }
 }
 
-struct CreditCardView_Previews: PreviewProvider {
-    static var previews: some View {
-        Group {
-            CreditCardView()
-                .preferredColorScheme(.light)
-            
-            CreditCardView()
-                .preferredColorScheme(.dark)
-        }
-    }
-}
+

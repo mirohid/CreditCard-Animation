@@ -1,0 +1,6 @@
+framework module Pods_CreditCard_Animation {
+  umbrella header "Pods-CreditCard-Animation-umbrella.h"
+
+  export *
+  module * { export * }
+}

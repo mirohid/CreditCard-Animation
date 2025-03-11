@@ -6,12 +6,15 @@
 //
 
 import SwiftUI
-
+import RealmSwift
 @main
 struct CreditCard_AnimationApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onAppear {
+                print("Realm location: \(Realm.Configuration.defaultConfiguration.fileURL!)")
+            }
         }
     }
 }
